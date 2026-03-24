@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter.woff2') format('woff2');
+}
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Purple-tinted darks (Velox palette) */
+  --color-bg-primary: #08060E;
+  --color-bg-secondary: #110D1C;
+  --color-bg-card: rgba(16, 12, 36, 0.82);
+  --color-bg-card-hover: #1A1530;
+  --color-bg-elevated: #13102A;
+  --color-border-primary: rgba(160, 140, 255, 0.1);
+  --color-border-accent: #a855f7;
+  --color-text-primary: #F4F0FA;
+  --color-text-secondary: #A89EC4;
+  --color-text-muted: #5E5488;
+  --color-accent-primary: #D946EF;
+  --color-accent-secondary: #8B6CF6;
+  --color-accent-tertiary: #6366f1;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #F43F5E;
+  --color-info: #06B6D4;
+}
+
+/* ── Base ── */
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-weight: 200;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Noise texture overlay ── */
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px;
+  mix-blend-mode: overlay;
+}
+
+/* ── Cursor glow ── */
+.cursor-glow {
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 108, 246, 0.08), rgba(217, 70, 239, 0.03) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  transition: left 0.15s ease, top 0.15s ease;
+  will-change: left, top;
+}
+
+/* ── Gradient border utility (Velox glass cards) ── */
+.glass-card {
+  position: relative;
+  background: var(--color-bg-card);
+  backdrop-filter: blur(16px);
+  border-radius: 14px;
+  isolation: isolate;
+}
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(139, 108, 246, 0.3), rgba(6, 182, 212, 0.15), rgba(155, 111, 247, 0.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  transition: opacity 0.4s;
+}
+.glass-card:hover::before { opacity: 1; }
+
+/* ── Gradient text (Velox-style keyword emphasis) ── */
+.gradient-text {
+  background: linear-gradient(135deg, #8B6CF6, #D946EF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Dash value: ultra-thin large numbers ── */
+.dash-value {
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+/* ── Micro label: tiny uppercase tracking ── */
+.micro-label {
+  font-size: 0.625rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+}
+
+/* ── Dash badge (green/purple/amber pill) ── */
+.dash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.55rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+.dash-badge.green  { background: rgba(16, 185, 129, 0.12); color: var(--color-success); border: 1px solid rgba(16, 185, 129, 0.2); }
+.dash-badge.purple { background: rgba(139, 108, 246, 0.12); color: var(--color-accent-secondary); border: 1px solid rgba(139, 108, 246, 0.2); }
+.dash-badge.amber  { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+.dash-badge.rose   { background: rgba(244, 63, 94, 0.12); color: var(--color-error); border: 1px solid rgba(244, 63, 94, 0.2); }
+.dash-badge.blue   { background: rgba(6, 182, 212, 0.12); color: var(--color-info); border: 1px solid rgba(6, 182, 212, 0.2); }
+
+/* ── Sparkline bars ── */
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+}
+.sparkline-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-width: 3px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.sparkline-bar:nth-child(odd) { background: linear-gradient(to top, #8B6CF6, #D946EF); }
+.sparkline-bar:nth-child(even) { background: rgba(139, 108, 246, 0.25); }
+.sparkline-bar:hover { opacity: 1; }
+
+/* ── Progress rows (approval-rate style) ── */
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+.progress-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.progress-fill.g1 { background: linear-gradient(90deg, #8B6CF6, #D946EF); }
+.progress-fill.g2 { background: linear-gradient(90deg, #9B6FF7, #EC4899); }
+.progress-fill.g3 { background: linear-gradient(90deg, #D946EF, #8B6CF6); opacity: 0.7; }
+.progress-pct {
+  min-width: 2rem;
+  text-align: right;
+  font-weight: 400;
+  font-size: 0.55rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Feed dot ── */
+.feed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+}
+.feed-dot.green  { background: var(--color-success); box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+.feed-dot.purple { background: var(--color-accent-secondary); box-shadow: 0 0 6px rgba(139, 108, 246, 0.5); }
+.feed-dot.amber  { background: var(--color-warning); box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+.feed-dot.rose   { background: var(--color-error); box-shadow: 0 0 6px rgba(244, 63, 94, 0.5); }
+.feed-dot.blue   { background: var(--color-info); box-shadow: 0 0 6px rgba(6, 182, 212, 0.5); }
+
+/* ── Code syntax (API snippet) ── */
+.dash-code {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.65rem;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+.dash-code .cmt { color: var(--color-text-muted); font-style: italic; }
+.dash-code .kw  { color: #A78BFA; }
+.dash-code .fn  { color: #D946EF; }
+.dash-code .str { color: var(--color-success); }
+.dash-code .num { color: var(--color-warning); }
+
+/* ── Sub text with up/down indicators ── */
+.dash-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+.dash-sub .up { color: var(--color-success); font-weight: 400; }
+.dash-sub .down { color: var(--color-error); font-weight: 400; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg-secondary); }
+::-webkit-scrollbar-thumb { background: rgba(160, 140, 255, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(160, 140, 255, 0.3); }
+
+/* ── Pulsing dot animation ── */
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
