@@ -45,8 +45,8 @@ const statusConfig: Record<Status, { label: string; classes: string; dot: string
   },
 };
 
-export function StatusBadge({ status }: { status: Status }) {
-  const config = statusConfig[status];
+export function StatusBadge({ status }: { status: string }) {
+  const config = statusConfig[status as Status] ?? statusConfig.draft;
   return (
     <span
       className={clsx(

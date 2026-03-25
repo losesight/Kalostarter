@@ -6,34 +6,62 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  ArrowUpRight,
   Layers,
   Globe,
   Palette,
+  Loader2,
 } from "lucide-react";
 import { Card } from "@/components/card";
 import { StatCard } from "@/components/stat-card";
-import { mockProducts } from "@/lib/mock-data";
+import { api } from "@/lib/api";
+import { useFetch } from "@/lib/use-fetch";
 import { clsx } from "clsx";
+import { useState } from "react";
 
-const themes = [
-  { name: "Dawn", version: "15.0.0", active: true },
-  { name: "Craft", version: "8.2.1", active: false },
-  { name: "Sense", version: "6.1.0", active: false },
-];
-
-const syncLog = [
-  { id: "s1", product: "Wireless Bluetooth Earbuds Pro", action: "Created", status: "success" as const, shopifyId: "gid://shopify/Product/8001", time: "2 min ago" },
-  { id: "s2", product: "Smart Watch Fitness Tracker", action: "Updated", status: "success" as const, shopifyId: "gid://shopify/Product/8002", time: "30 min ago" },
-  { id: "s3", product: "Gaming Mouse Pad XXL RGB", action: "Created", status: "success" as const, shopifyId: "gid://shopify/Product/8003", time: "1 hour ago" },
-  { id: "s4", product: "Phone Holder Car Mount Magnetic", action: "Failed", status: "error" as const, shopifyId: "—", time: "45 min ago" },
-  { id: "s5", product: "LED Ring Light 10-inch", action: "Queued", status: "pending" as const, shopifyId: "—", time: "Just now" },
-];
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
 export default function ShopifyPage() {
+  const { data: conn } = useFetch(() => api.shopify.connect(), []);
+  const { data: sync, loading, refetch } = useFetch(() => api.shopify.syncStatus(), []);
+  const { data: readyData } = useFetch(() => api.products.list({ status: "ready" }), []);
+  const [publishing, setPublishing] = useState(false);
+
+  const readyProducts = readyData?.products ?? [];
+  const synced = sync?.synced ?? [];
+  const stats = sync?.stats ?? { totalSynced: 0, pendingPublish: 0, failedSyncs: 0 };
+
+  const handlePublishAll = async () => {
+    if (readyProducts.length === 0) return;
+    setPublishing(true);
+    try {
+      await api.shopify.publish(readyProducts.map((p) => p.id));
+      refetch();
+    } catch {
+      // handled
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handlePublishOne = async (id: string) => {
+    try {
+      await api.shopify.publish([id]);
+      refetch();
+    } catch {
+      // handled
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-[1.75rem] font-extralight tracking-tight text-text-primary">
@@ -44,84 +72,59 @@ export default function ShopifyPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 rounded-lg border border-border-primary bg-bg-card px-4 py-2.5 text-[0.8rem] font-light text-text-secondary hover:bg-bg-card-hover transition-colors">
-            <RefreshCw className="h-4 w-4" />
-            Sync All
+          <button onClick={refetch} className="flex items-center gap-2 rounded-lg border border-border-primary bg-bg-card px-4 py-2.5 text-[0.8rem] font-light text-text-secondary hover:bg-bg-card-hover transition-colors">
+            <RefreshCw className="h-4 w-4" /> Refresh
           </button>
-          <button className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-[0.8rem] font-medium text-white shadow-[0_0_20px_rgba(217,70,239,0.3)] transition-all hover:shadow-[0_0_30px_rgba(217,70,239,0.5)] hover:scale-[1.02]">
-            <ShoppingBag className="h-4 w-4" />
-            Publish Ready
+          <button
+            onClick={handlePublishAll}
+            disabled={publishing || readyProducts.length === 0}
+            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-[0.8rem] font-medium text-white shadow-[0_0_20px_rgba(217,70,239,0.3)] transition-all hover:shadow-[0_0_30px_rgba(217,70,239,0.5)] hover:scale-[1.02] disabled:opacity-50"
+          >
+            {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+            Publish Ready ({readyProducts.length})
           </button>
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <StatCard label="Total Synced" value={87} change="3 today" changeType="positive" icon={CheckCircle2} accentColor="green" />
-        <StatCard label="Pending Publish" value={34} change="Ready to go" changeType="neutral" icon={Clock} accentColor="blue" />
-        <StatCard label="Failed Syncs" value={5} change="Needs attention" changeType="negative" icon={XCircle} accentColor="red" />
-        <StatCard label="API Calls Today" value={247} change="of 1,000 limit" changeType="neutral" icon={Globe} accentColor="purple" />
+        <StatCard label="Total Synced" value={stats.totalSynced} change={`${synced.length} products`} changeType="positive" icon={CheckCircle2} accentColor="green" />
+        <StatCard label="Pending Publish" value={stats.pendingPublish} change="Ready to go" changeType="neutral" icon={Clock} accentColor="blue" />
+        <StatCard label="Failed Syncs" value={stats.failedSyncs} change={stats.failedSyncs > 0 ? "Needs attention" : "All clear"} changeType={stats.failedSyncs > 0 ? "negative" : "neutral"} icon={XCircle} accentColor="red" />
+        <StatCard label="Connection" value={conn?.connected ? "Active" : "—"} change={conn?.connected ? conn.shop?.myshopifyDomain || "Connected" : "Not configured"} changeType={conn?.connected ? "positive" : "neutral"} icon={Globe} accentColor="purple" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Store + Theme info */}
         <div className="space-y-4">
           {/* Store connection */}
           <div className="rounded-xl border border-border-primary bg-bg-card p-5">
             <span className="micro-label text-[0.7rem]">Store Connection</span>
             <div className="mt-3 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
-                <ShoppingBag className="h-5 w-5 text-success" />
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${conn?.connected ? "bg-success/10" : "bg-warning/10"}`}>
+                <ShoppingBag className={`h-5 w-5 ${conn?.connected ? "text-success" : "text-warning"}`} />
               </div>
               <div>
                 <p className="text-[0.85rem] font-light text-text-primary">
-                  mystore.myshopify.com
+                  {conn?.connected && conn.shop ? conn.shop.myshopifyDomain : "Not connected"}
                 </p>
-                <p className="text-[0.65rem] text-success font-light">Connected & active</p>
+                <p className={`text-[0.65rem] font-light ${conn?.connected ? "text-success" : "text-warning"}`}>
+                  {conn?.connected ? "Connected & active" : "Configure in Settings"}
+                </p>
               </div>
             </div>
-            <div className="mt-4 space-y-2 text-[0.7rem]">
-              {[
-                ["Plan", "Shopify Plus"],
-                ["Products", "87 / unlimited"],
-                ["Last Sync", "2 min ago"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-text-muted font-light">{k}</span>
-                  <span className="text-text-secondary font-light">{v}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Theme selector */}
-          <div className="rounded-xl border border-border-primary bg-bg-card p-5">
-            <span className="micro-label text-[0.7rem]">Theme / Template</span>
-            <p className="mt-0.5 text-[0.65rem] font-light text-text-muted">Select active theme for product layout</p>
-            <div className="mt-3 space-y-2">
-              {themes.map((theme) => (
-                <div
-                  key={theme.name}
-                  className={clsx(
-                    "flex items-center gap-3 rounded-lg border p-3 transition-all cursor-pointer",
-                    theme.active
-                      ? "border-accent-primary/40 bg-accent-primary/5"
-                      : "border-border-primary hover:bg-bg-elevated/50"
-                  )}
-                >
-                  <div className={clsx("flex h-9 w-9 items-center justify-center rounded-lg", theme.active ? "bg-accent-primary/20" : "bg-bg-elevated")}>
-                    <Palette className={clsx("h-4 w-4", theme.active ? "text-accent-primary" : "text-text-muted")} />
+            {conn?.connected && conn.shop && (
+              <div className="mt-4 space-y-2 text-[0.7rem]">
+                {[
+                  ["Store", conn.shop.name],
+                  ["Plan", conn.shop.plan.displayName],
+                  ["Products", String(conn.shop.productCount?.count ?? 0)],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between">
+                    <span className="text-text-muted font-light">{k}</span>
+                    <span className="text-text-secondary font-light">{v}</span>
                   </div>
-                  <div className="flex-1">
-                    <p className={clsx("text-[0.8rem] font-light", theme.active ? "text-text-primary" : "text-text-secondary")}>
-                      {theme.name}
-                    </p>
-                    <p className="micro-label">v{theme.version}</p>
-                  </div>
-                  {theme.active && <span className="dash-badge purple">Active</span>}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Field mapping */}
@@ -135,9 +138,8 @@ export default function ShopifyPage() {
                 ["description", "Body HTML"],
                 ["category", "Product Type"],
                 ["images[]", "Media"],
-                ["variants[]", "Variants"],
-                ["seo_title", "SEO Title (metafield)"],
-                ["seo_desc", "SEO Description (metafield)"],
+                ["seo_title", "SEO Title"],
+                ["seo_desc", "SEO Description"],
               ].map(([from, to]) => (
                 <div key={from} className="flex items-center gap-2 rounded-md bg-bg-elevated p-2">
                   <span className="flex-1 font-mono text-accent-primary font-light">{from}</span>
@@ -149,87 +151,72 @@ export default function ShopifyPage() {
           </div>
         </div>
 
-        {/* Sync log */}
         <div className="lg:col-span-2">
-          <Card
-            title="Sync Log"
-            subtitle="Recent product sync activity with Shopify"
-            action={
-              <a href="#" className="text-[0.65rem] font-medium text-accent-primary hover:text-accent-secondary transition-colors">
-                View all →
-              </a>
-            }
-          >
+          <Card title="Sync Log" subtitle="Recently synced products">
             <div className="overflow-x-auto">
               <table className="w-full text-[0.8rem]">
                 <thead>
                   <tr className="border-b border-border-primary">
-                    {["Product", "Action", "Shopify ID", "Status", "Time"].map((col) => (
+                    {["Product", "Shopify ID", "Status", "Synced"].map((col) => (
                       <th key={col} className="pb-3 text-left micro-label text-[0.6rem]">{col}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-primary/50">
-                  {syncLog.map((entry) => (
+                  {loading && (
+                    <tr><td colSpan={4} className="py-8 text-center"><Loader2 className="inline h-5 w-5 animate-spin text-text-muted" /></td></tr>
+                  )}
+                  {synced.map((entry) => (
                     <tr key={entry.id} className="hover:bg-bg-elevated/30 transition-colors">
-                      <td className="py-3 font-light text-text-primary">{entry.product}</td>
-                      <td className="py-3">
-                        <span className={clsx(
-                          "text-[0.7rem] font-medium",
-                          entry.action === "Created" && "text-success",
-                          entry.action === "Updated" && "text-info",
-                          entry.action === "Failed" && "text-error",
-                          entry.action === "Queued" && "text-warning"
-                        )}>
-                          {entry.action}
-                        </span>
-                      </td>
-                      <td className="py-3 font-mono text-[0.65rem] text-text-muted">{entry.shopifyId}</td>
-                      <td className="py-3">
-                        {entry.status === "success" ? <CheckCircle2 className="h-4 w-4 text-success" /> : entry.status === "error" ? <XCircle className="h-4 w-4 text-error" /> : <Clock className="h-4 w-4 text-warning" />}
-                      </td>
-                      <td className="py-3 text-[0.7rem] text-text-muted font-light">{entry.time}</td>
+                      <td className="py-3 font-light text-text-primary">{entry.title}</td>
+                      <td className="py-3 font-mono text-[0.65rem] text-text-muted">{entry.shopifyProductId}</td>
+                      <td className="py-3"><CheckCircle2 className="h-4 w-4 text-success" /></td>
+                      <td className="py-3 text-[0.7rem] text-text-muted font-light">{entry.syncedAt ? timeAgo(entry.syncedAt) : "—"}</td>
                     </tr>
                   ))}
+                  {!loading && synced.length === 0 && (
+                    <tr><td colSpan={4} className="py-8 text-center text-[0.8rem] font-light text-text-muted">No products synced yet</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </Card>
 
-          {/* Ready to publish */}
           <div className="mt-4">
             <Card
               title="Ready to Publish"
               subtitle="Products with complete content awaiting Shopify sync"
               action={
-                <button className="rounded-lg bg-gradient-to-r from-accent-primary to-accent-secondary px-3 py-1.5 text-[0.65rem] font-medium text-white shadow-[0_0_15px_rgba(217,70,239,0.3)] transition-all hover:shadow-[0_0_20px_rgba(217,70,239,0.5)]">
-                  Publish All (2)
-                </button>
+                readyProducts.length > 0 ? (
+                  <button onClick={handlePublishAll} className="rounded-lg bg-gradient-to-r from-accent-primary to-accent-secondary px-3 py-1.5 text-[0.65rem] font-medium text-white shadow-[0_0_15px_rgba(217,70,239,0.3)]">
+                    Publish All ({readyProducts.length})
+                  </button>
+                ) : undefined
               }
             >
               <div className="space-y-2">
-                {mockProducts
-                  .filter((p) => p.status === "ready")
-                  .map((product) => (
-                    <div
-                      key={product.id}
-                      className="flex items-center gap-4 rounded-lg border border-border-primary bg-bg-elevated/50 p-4 transition-colors hover:bg-bg-elevated"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-card border border-border-primary">
-                        <Layers className="h-5 w-5 text-text-muted" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[0.85rem] font-light text-text-primary">{product.title}</p>
-                        <p className="text-[0.7rem] font-light text-text-muted">
-                          ${product.price.toFixed(2)} — {product.variants} variants — AI copy ready
-                        </p>
-                      </div>
-                      <button className="flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 py-1.5 text-[0.7rem] font-medium text-success hover:bg-success/20 transition-colors">
-                        <ShoppingBag className="h-3 w-3" />
-                        Publish
-                      </button>
+                {readyProducts.map((product) => (
+                  <div key={product.id} className="flex items-center gap-4 rounded-lg border border-border-primary bg-bg-elevated/50 p-4 transition-colors hover:bg-bg-elevated">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-card border border-border-primary">
+                      <Layers className="h-5 w-5 text-text-muted" />
                     </div>
-                  ))}
+                    <div className="flex-1">
+                      <p className="text-[0.85rem] font-light text-text-primary">{product.title}</p>
+                      <p className="text-[0.7rem] font-light text-text-muted">
+                        ${product.price.toFixed(2)} — {product.aiGenerated ? "AI copy ready" : "No AI copy"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handlePublishOne(product.id)}
+                      className="flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 py-1.5 text-[0.7rem] font-medium text-success hover:bg-success/20 transition-colors"
+                    >
+                      <ShoppingBag className="h-3 w-3" /> Publish
+                    </button>
+                  </div>
+                ))}
+                {readyProducts.length === 0 && (
+                  <p className="py-4 text-center text-[0.8rem] font-light text-text-muted">No products ready to publish</p>
+                )}
               </div>
             </Card>
           </div>
