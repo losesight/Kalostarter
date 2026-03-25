@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  hashedPassword String
+  role           String    @default("admin")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  activities Activity[]
+  settings   Setting[]
+  sessions   Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  price            Float
+  compareAtPrice   Float?
+  status           String   @default("draft") // draft | ready | published | error
+  category         String?
+  variants         String   @default("[]") // JSON array
+  images           String   @default("[]") // JSON array of URLs
+  source           String   @default("kalodata.com")
+  kaloSourceUrl    String?
+  shopifyProductId String?
+  syncedAt         DateTime?
+  aiGenerated      Boolean  @default(false)
+  aiTitle          String?
+  aiDescription    String?
+  aiBullets        String?  // JSON array
+  seoTitle         String?
+  seoDescription   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  importJobId String?
+  importJob   ImportJob? @relation(fields: [importJobId], references: [id])
+  reviews     Review[]
+}
+
+model ImportJob {
+  id               String    @id @default(cuid())
+  source           String    @default("Kalo Data")
+  url              String
+  status           String    @default("queued") // queued | running | completed | failed
+  productsFound    Int       @default(0)
+  productsImported Int       @default(0)
+  errors           Int       @default(0)
+  errorLog         String?   // JSON array of error messages
+  startedAt        DateTime  @default(now())
+  finishedAt       DateTime?
+
+  products Product[]
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  type      String   // import | publish | ai | error | sync
+  message   String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id     String @id @default(cuid())
+  key    String
+  value  String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([key, userId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author    String?
+  rating    Int
+  text      String
+  date      String?
+  verified  Boolean  @default(false)
+  helpful   Int      @default(0)
+  createdAt DateTime @default(now())
+}
