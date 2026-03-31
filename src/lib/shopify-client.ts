@@ -49,7 +49,6 @@ export async function testConnection(config: ShopifyConfig) {
       email
       myshopifyDomain
       plan { displayName }
-      productCount: productsCount { count }
     }
   }`;
 
@@ -59,7 +58,6 @@ export async function testConnection(config: ShopifyConfig) {
       email: string;
       myshopifyDomain: string;
       plan: { displayName: string };
-      productCount: { count: number };
     };
   }>(config, query);
 
@@ -127,7 +125,7 @@ export async function createProduct(
       title: product.title,
       descriptionHtml: product.descriptionHtml || "",
       productType: product.productType || "",
-      vendor: product.vendor || "KaloStarter Import",
+      vendor: product.vendor || "fflame Import",
       tags: product.tags || [],
       seo: {
         title: product.seoTitle || product.title,

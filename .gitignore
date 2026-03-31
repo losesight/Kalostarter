@@ -15,3 +15,9 @@ dev.db-journal
 *.db-journal
 
 /src/generated/prisma
+
+# Theme base (large binary assets)
+theme-base/
+
+# Generated theme ZIPs
+public/themes/

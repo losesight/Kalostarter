@@ -62,7 +62,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-extralight tracking-tight text-text-primary">
-            Kalo<span className="gradient-text font-light">Starter</span>
+            ff<span className="gradient-text font-light">lame</span>
           </h1>
           <p className="mt-2 text-sm font-light text-text-muted">
             {isRegister ? "Create your account" : "Sign in to your dashboard"}

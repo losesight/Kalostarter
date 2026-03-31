@@ -20,14 +20,260 @@ export interface ScrapeResult {
 }
 
 /**
- * Attempts to fetch and parse product data from a KaloData URL.
- *
- * Kalo Data uses React SSR with Cloudflare protection, so direct HTML
- * scraping may be limited. This scraper extracts what it can from the
- * initial HTML payload and any embedded __NEXT_DATA__ or script tags.
- * Falls back gracefully if the page is behind a login wall.
+ * Primary scraper: launches a headless Chromium browser via Playwright,
+ * navigates to the KaloData URL like a real user, waits for content to
+ * render, then extracts product data from the fully-loaded page.
  */
-export async function scrapeKaloData(url: string): Promise<ScrapeResult> {
+async function scrapeWithBrowser(url: string): Promise<ScrapeResult> {
+  const errors: string[] = [];
+  const products: KaloProduct[] = [];
+
+  let browser;
+  try {
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+      ],
+    });
+
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      viewport: { width: 1920, height: 1080 },
+      locale: "en-US",
+    });
+
+    // Hide webdriver detection
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      (window as unknown as Record<string, unknown>).chrome = { runtime: {} };
+    });
+
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+
+    // Wait for content to be present
+    await page.waitForTimeout(2000);
+
+    const html = await page.content();
+    const $ = cheerio.load(html);
+
+    // Strategy 1: __NEXT_DATA__
+    const nextDataScript = $("script#__NEXT_DATA__").text();
+    if (nextDataScript) {
+      try {
+        const nextData = JSON.parse(nextDataScript);
+        const pageProps = nextData?.props?.pageProps;
+
+        if (pageProps?.products || pageProps?.data?.products) {
+          const rawProducts =
+            pageProps.products || pageProps.data.products || [];
+          for (const raw of rawProducts) {
+            products.push(normalizeKaloProduct(raw, url));
+          }
+        }
+
+        if (pageProps?.product) {
+          products.push(normalizeKaloProduct(pageProps.product, url));
+        }
+      } catch (e) {
+        errors.push(`Failed to parse __NEXT_DATA__: ${e}`);
+      }
+    }
+
+    // Strategy 2: Inline JSON in scripts
+    if (products.length === 0) {
+      $("script").each((_, el) => {
+        const text = $(el).text();
+        if (
+          text.includes('"products"') ||
+          text.includes('"productList"') ||
+          text.includes('"items"')
+        ) {
+          try {
+            const jsonMatch = text.match(
+              /(?:products|productList|items)\s*[=:]\s*(\[[\s\S]*?\]);?/
+            );
+            if (jsonMatch?.[1]) {
+              const items = JSON.parse(jsonMatch[1]);
+              for (const raw of items) {
+                products.push(normalizeKaloProduct(raw, url));
+              }
+            }
+          } catch {
+            // continue
+          }
+        }
+      });
+    }
+
+    // Strategy 3: Extract visible product info from the rendered page
+    if (products.length === 0) {
+      try {
+        const extracted = await page.evaluate(() => {
+          const data: Record<string, unknown> = {};
+
+          // Try common KaloData selectors
+          const titleEl =
+            document.querySelector("h1") ||
+            document.querySelector('[class*="product-title"]') ||
+            document.querySelector('[class*="productTitle"]') ||
+            document.querySelector('[class*="title"]');
+          if (titleEl) data.title = titleEl.textContent?.trim();
+
+          const priceEls = document.querySelectorAll(
+            '[class*="price"], [class*="Price"]'
+          );
+          priceEls.forEach((el) => {
+            const text = el.textContent?.trim() || "";
+            const match = text.match(/\$?([\d,.]+)/);
+            if (match && !data.price) {
+              data.price = parseFloat(match[1].replace(/,/g, ""));
+            }
+          });
+
+          const imageEls = document.querySelectorAll(
+            'img[src*="product"], img[src*="image"], img[class*="product"], img[class*="gallery"], .product-image img, [class*="media"] img'
+          );
+          const images: string[] = [];
+          imageEls.forEach((img) => {
+            const src =
+              img.getAttribute("src") || img.getAttribute("data-src");
+            if (src && !src.includes("logo") && !src.includes("icon")) {
+              images.push(src);
+            }
+          });
+          data.images = images;
+
+          // Try to find category
+          const breadcrumbs = document.querySelectorAll(
+            '[class*="breadcrumb"] a, nav a'
+          );
+          breadcrumbs.forEach((a) => {
+            const text = a.textContent?.trim();
+            if (text && text.length > 2 && text.length < 30) {
+              data.category = text;
+            }
+          });
+
+          // Try to find revenue/units sold from KaloData-specific elements
+          const statEls = document.querySelectorAll(
+            '[class*="stat"], [class*="metric"], [class*="data-value"]'
+          );
+          statEls.forEach((el) => {
+            const text = el.textContent?.trim() || "";
+            if (text.includes("revenue") || text.includes("Revenue")) {
+              data.revenue = text;
+            }
+            if (
+              text.includes("units") ||
+              text.includes("sold") ||
+              text.includes("Units")
+            ) {
+              const match = text.match(/([\d,]+)/);
+              if (match) data.unitsSold = parseInt(match[1].replace(/,/g, ""));
+            }
+          });
+
+          return data;
+        });
+
+        if (extracted.title && String(extracted.title).length > 2) {
+          products.push({
+            title: String(extracted.title),
+            price:
+              typeof extracted.price === "number" ? extracted.price : 0,
+            images: Array.isArray(extracted.images)
+              ? (extracted.images as string[])
+              : [],
+            variants: [{ name: "Default" }],
+            source: "kalodata.com",
+            kaloSourceUrl: url,
+            category: extracted.category
+              ? String(extracted.category)
+              : extractCategory(url),
+            revenue: extracted.revenue ? String(extracted.revenue) : undefined,
+            unitsSold:
+              typeof extracted.unitsSold === "number"
+                ? extracted.unitsSold
+                : undefined,
+          });
+        }
+      } catch (e) {
+        errors.push(`DOM extraction failed: ${e}`);
+      }
+    }
+
+    // Strategy 4: Parse product cards from HTML
+    if (products.length === 0) {
+      const productCards = $(
+        '[class*="product"], [class*="Product"], [data-product]'
+      );
+
+      productCards.each((_, el) => {
+        try {
+          const card = $(el);
+          const title = card
+            .find('[class*="title"], [class*="name"], h3, h4')
+            .first()
+            .text()
+            .trim();
+          const priceText = card
+            .find('[class*="price"], [class*="Price"]')
+            .first()
+            .text()
+            .trim();
+          const image =
+            card.find("img").first().attr("src") ||
+            card.find("img").first().attr("data-src") ||
+            "";
+
+          if (title && title.length > 2) {
+            const price =
+              parseFloat(priceText.replace(/[^0-9.]/g, "")) || 0;
+            products.push({
+              title,
+              price,
+              images: image ? [image] : [],
+              variants: [{ name: "Default" }],
+              source: "kalodata.com",
+              kaloSourceUrl: url,
+              category: extractCategory(url),
+            });
+          }
+        } catch {
+          // skip
+        }
+      });
+    }
+
+    if (products.length === 0) {
+      errors.push(
+        "Could not extract product data from this page. The page may require login or the data format is unrecognized. Try manual entry instead."
+      );
+    }
+
+    return { products, errors, totalFound: products.length };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(`Browser scrape failed: ${msg}`);
+    return { products, errors, totalFound: 0 };
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
+}
+
+/**
+ * Fallback scraper using plain HTTP (no browser). Fast but gets blocked
+ * by Cloudflare-protected sites.
+ */
+async function scrapeWithHttp(url: string): Promise<ScrapeResult> {
   const errors: string[] = [];
   const products: KaloProduct[] = [];
 
@@ -51,7 +297,6 @@ export async function scrapeKaloData(url: string): Promise<ScrapeResult> {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Strategy 1: Look for __NEXT_DATA__ JSON payload (Next.js SSR)
     const nextDataScript = $("script#__NEXT_DATA__").text();
     if (nextDataScript) {
       try {
@@ -74,7 +319,6 @@ export async function scrapeKaloData(url: string): Promise<ScrapeResult> {
       }
     }
 
-    // Strategy 2: Look for inline JSON in script tags
     if (products.length === 0) {
       $("script").each((_, el) => {
         const text = $(el).text();
@@ -94,78 +338,55 @@ export async function scrapeKaloData(url: string): Promise<ScrapeResult> {
               }
             }
           } catch {
-            // Not valid JSON, continue
+            // continue
           }
         }
       });
-    }
-
-    // Strategy 3: Parse product cards from HTML structure
-    if (products.length === 0) {
-      const productCards = $(
-        '[class*="product"], [class*="Product"], [data-product]'
-      );
-
-      productCards.each((_, el) => {
-        try {
-          const card = $(el);
-          const title =
-            card.find('[class*="title"], [class*="name"], h3, h4').first().text().trim();
-          const priceText =
-            card.find('[class*="price"], [class*="Price"]').first().text().trim();
-          const image =
-            card.find("img").first().attr("src") ||
-            card.find("img").first().attr("data-src") ||
-            "";
-
-          if (title && title.length > 2) {
-            const price = parseFloat(priceText.replace(/[^0-9.]/g, "")) || 0;
-            products.push({
-              title,
-              price,
-              images: image ? [image] : [],
-              variants: [{ name: "Default" }],
-              source: "kalodata.com",
-              kaloSourceUrl: url,
-              category: extractCategory(url),
-            });
-          }
-        } catch {
-          // Skip malformed card
-        }
-      });
-    }
-
-    // If Cloudflare/login wall blocked us
-    if (
-      products.length === 0 &&
-      (html.includes("cf-browser-verification") ||
-        html.includes("challenge-platform") ||
-        html.includes("login") && html.length < 5000)
-    ) {
-      errors.push(
-        "Page is behind Cloudflare protection or requires login. " +
-          "Use the manual JSON import instead."
-      );
     }
 
     return { products, errors, totalFound: products.length };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    errors.push(`Fetch failed: ${msg}`);
+    errors.push(`HTTP fetch failed: ${msg}`);
     return { products, errors, totalFound: 0 };
   }
 }
 
-function normalizeKaloProduct(raw: Record<string, unknown>, sourceUrl: string): KaloProduct {
+/**
+ * Main entry point: tries the headless browser first (bypasses Cloudflare),
+ * falls back to plain HTTP if Playwright is unavailable.
+ */
+export async function scrapeKaloData(url: string): Promise<ScrapeResult> {
+  // Try browser-based scraping first
+  try {
+    const result = await scrapeWithBrowser(url);
+    if (result.products.length > 0) return result;
+
+    // If browser got nothing, try HTTP as fallback
+    const httpResult = await scrapeWithHttp(url);
+    if (httpResult.products.length > 0) return httpResult;
+
+    // Return whichever had better error info
+    return result.errors.length > 0 ? result : httpResult;
+  } catch {
+    // Playwright not available, fall back to HTTP
+    return scrapeWithHttp(url);
+  }
+}
+
+function normalizeKaloProduct(
+  raw: Record<string, unknown>,
+  sourceUrl: string
+): KaloProduct {
   const title =
     (raw.title as string) ||
     (raw.product_title as string) ||
     (raw.name as string) ||
     "Untitled Product";
 
-  const price =
-    parseFloat(String(raw.price || raw.unit_price || raw.avg_price || 0));
+  const price = parseFloat(
+    String(raw.price || raw.unit_price || raw.avg_price || 0)
+  );
 
   const compareAtPrice = raw.compare_at_price
     ? parseFloat(String(raw.compare_at_price))
@@ -221,7 +442,7 @@ function extractCategory(url: string): string {
 
 /**
  * Manual import: accepts a JSON array of products directly.
- * This is the fallback when scraping is blocked.
+ * Fallback when all scraping methods are blocked.
  */
 export function parseManualImport(
   jsonData: Record<string, unknown>[],

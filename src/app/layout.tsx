@@ -3,8 +3,8 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
-  title: "KaloStarter — Kalo to Shopify",
-  description: "Import products from Kalo Data and publish to Shopify",
+  title: "fflame — Kalo to Shopify",
+  description: "Import products from Kalo Data and publish to Shopify | fflame.io",
 };
 
 export default function RootLayout({

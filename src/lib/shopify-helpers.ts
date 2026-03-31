@@ -22,8 +22,12 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
 
   if (!map.shopify_store_domain || !map.shopify_access_token) return null;
 
+  let domain = map.shopify_store_domain.trim();
+  domain = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (!domain.includes(".")) domain = `${domain}.myshopify.com`;
+
   return {
-    storeDomain: map.shopify_store_domain,
-    accessToken: map.shopify_access_token,
+    storeDomain: domain,
+    accessToken: map.shopify_access_token.trim(),
   };
 }

@@ -7,6 +7,14 @@ import {
   uploadImageToProduct,
 } from "@/lib/shopify-client";
 import { getShopifyConfig } from "@/lib/shopify-helpers";
+import {
+  getPresetForCategory,
+  generateProductTemplateJSON,
+} from "@/lib/theme-presets";
+import {
+  ensureTemplateUploaded,
+  setProductTemplateSuffix,
+} from "@/lib/shopify-theme";
 
 const publishSchema = z.object({
   productIds: z.array(z.string()).min(1),
@@ -28,7 +36,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const results: { productId: string; shopifyId: string | null; error?: string }[] = [];
+    const results: { productId: string; shopifyId: string | null; templateSuffix?: string; error?: string }[] = [];
 
     for (const localId of parsed.data.productIds) {
       const product = await db.product.findUnique({ where: { id: localId } });
@@ -38,13 +46,45 @@ export async function POST(req: Request) {
       }
 
       try {
+        // Resolve category preset
+        const preset = getPresetForCategory(product.category || "General");
+        const templateJson = generateProductTemplateJSON(preset);
+
+        // Check for DB preset to link
+        const dbPreset = await db.themePreset.findUnique({
+          where: { slug: preset.slug },
+        });
+
+        // Ensure the category template is uploaded to the active Shopify theme
+        let templateSuffix: string | undefined;
+        try {
+          templateSuffix = await ensureTemplateUploaded(
+            config,
+            preset.slug,
+            templateJson
+          );
+        } catch {
+          // Template upload is non-fatal — product will use default template
+        }
+
+        // Create the product on Shopify
         const shopifyProduct = await createProduct(config, {
           title: product.aiTitle || product.title,
           descriptionHtml: product.aiDescription || product.description || "",
           productType: product.category || "",
+          tags: preset.badges.map((b) => b.text),
           seoTitle: product.seoTitle || undefined,
           seoDescription: product.seoDescription || undefined,
         });
+
+        // Assign the category template to the product
+        if (templateSuffix) {
+          try {
+            await setProductTemplateSuffix(config, shopifyProduct.id, templateSuffix);
+          } catch {
+            // Template assignment is non-fatal
+          }
+        }
 
         // Upload images
         const images: string[] = JSON.parse(product.images || "[]");
@@ -69,17 +109,18 @@ export async function POST(req: Request) {
             status: "published",
             shopifyProductId: shopifyProduct.id,
             syncedAt: new Date(),
+            themePresetId: dbPreset?.id || null,
           },
         });
 
         await db.activity.create({
           data: {
             type: "publish",
-            message: `Published "${product.title}" to Shopify`,
+            message: `Published "${product.title}" to Shopify with ${preset.name} template`,
           },
         });
 
-        results.push({ productId: localId, shopifyId: shopifyProduct.id });
+        results.push({ productId: localId, shopifyId: shopifyProduct.id, templateSuffix });
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
 

@@ -81,6 +81,58 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+  launch: {
+    list: () => apiFetch<LaunchProject[]>("/api/launch"),
+    create: (kaloUrl: string, name?: string) =>
+      apiFetch<LaunchProject>("/api/launch", {
+        method: "POST",
+        body: JSON.stringify({ kaloUrl, name }),
+      }),
+    createManual: (data: {
+      title: string;
+      price: number;
+      category?: string;
+      description?: string;
+      images?: string[];
+      name?: string;
+      kaloUrl?: string;
+    }) =>
+      apiFetch<LaunchProject>("/api/launch", {
+        method: "POST",
+        body: JSON.stringify({ manual: true, ...data }),
+      }),
+    get: (id: string) => apiFetch<LaunchProject>(`/api/launch/${id}`),
+    delete: (id: string) =>
+      apiFetch<{ success: boolean }>(`/api/launch/${id}`, { method: "DELETE" }),
+    adAnalysis: (id: string, data: AdAnalysisInput) =>
+      apiFetch<AdAnalysisResponse>(`/api/launch/${id}/ad-analysis`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    pricing: (id: string) =>
+      apiFetch<PricingResponse>(`/api/launch/${id}/pricing`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    copy: (id: string) =>
+      apiFetch<CopyResponse>(`/api/launch/${id}/copy`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    publish: (
+      id: string,
+      opts?: { storeDomain?: string; accessToken?: string; pricingTier?: number }
+    ) =>
+      apiFetch<ShopifyPublishResponse>(`/api/launch/${id}/publish`, {
+        method: "POST",
+        body: JSON.stringify(opts || {}),
+      }),
+    theme: (id: string) =>
+      apiFetch<ThemeBuildResponse>(`/api/launch/${id}/theme`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+  },
 };
 
 // Types
@@ -179,4 +231,133 @@ export interface GeneratedContent {
   bullets: string[];
   seoTitle: string;
   seoDescription: string;
+}
+
+// Launch Pipeline Types
+export interface LaunchProject {
+  id: string;
+  name: string;
+  kaloUrl: string;
+  status: string;
+  currentStep: number;
+  productId: string | null;
+  product: Product | null;
+  rawProductData: string | null;
+  adData: string | null;
+  adAnalysis: string | null;
+  competitorData: string | null;
+  pricingResult: string | null;
+  websiteCopy: string | null;
+  adCopy: string | null;
+  themePresetId: string | null;
+  themePreset: { id: string; name: string; slug: string; category: string } | null;
+  themeZipPath: string | null;
+  errorLog: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdAnalysisInput {
+  adContent?: string;
+  adPlatform?: string;
+  adMetrics?: {
+    views?: number;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    ctr?: number;
+  };
+}
+
+export interface AdAnalysisResponse {
+  contentFormat: {
+    type: string;
+    reasoning: string;
+    recommendedFormats: string[];
+  };
+  creativePerformance: {
+    hooks: string[];
+    emotionalTriggers: string[];
+    whyItWorks: string;
+    weaknesses: string[];
+  };
+  facebookPrediction: {
+    estimatedCTR: string;
+    estimatedCPM: string;
+    estimatedROAS: string;
+    confidence: string;
+    reasoning: string;
+  };
+  customerAvatar: {
+    demographics: { ageRange: string; gender: string; income: string; location: string };
+    psychographics: {
+      painPoints: string[];
+      desires: string[];
+      objections: string[];
+      buyingTriggers: string[];
+    };
+    platforms: string[];
+  };
+  adCopyAngles: { angle: string; headline: string; primaryText: string; cta: string }[];
+  messagingFramework: {
+    uniqueMechanism: string;
+    bigPromise: string;
+    proofPoints: string[];
+    urgencyAngle: string;
+  };
+}
+
+export interface PricingResponse {
+  competitors: { title: string; price: number; source: string; rating?: number }[];
+  averagePrice: number;
+  priceRange: { min: number; max: number };
+  recommendedTiers: {
+    name: string;
+    price: number;
+    compareAtPrice: number | null;
+    margin: string;
+    strategy: string;
+  }[];
+  offerStructure: {
+    headline: string;
+    mainOffer: string;
+    bonuses: string[];
+    guarantee: string;
+    urgency: string;
+    stackValue: string;
+  };
+  reasoning: string;
+}
+
+export interface CopyResponse {
+  websiteCopy: {
+    hero: { headline: string; subheadline: string; ctaText: string; urgencyBanner: string };
+    productSection: { title: string; description: string; bullets: string[]; guaranteeText: string };
+    socialProof: { headline: string; testimonialPrompts: string[]; statsLine: string };
+    faq: { question: string; answer: string }[];
+    seo: { title: string; metaDescription: string; keywords: string[] };
+  };
+  adCopy: {
+    angles: { name: string; headline: string; primaryText: string; description: string; cta: string }[];
+    emailSubjectLines: string[];
+    smsMessages: string[];
+  };
+}
+
+export interface ShopifyPublishResponse {
+  shopifyProductId: string;
+  shopifyHandle: string;
+  shopifyAdminUrl: string;
+  shopName: string;
+  price: number;
+  compareAtPrice: number | null;
+  imagesUploaded: number;
+  error?: string;
+  needsCredentials?: boolean;
+}
+
+export interface ThemeBuildResponse {
+  downloadUrl: string;
+  preset: string;
+  category: string;
 }

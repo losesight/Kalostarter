@@ -7,10 +7,10 @@ async function main() {
   const hashedPassword = await hash("admin123", 12);
 
   const user = await prisma.user.upsert({
-    where: { email: "admin@kalostarter.com" },
+    where: { email: "admin@fflame.io" },
     update: {},
     create: {
-      email: "admin@kalostarter.com",
+      email: "admin@fflame.io",
       name: "Admin",
       hashedPassword,
       role: "admin",
@@ -79,7 +79,25 @@ async function main() {
     });
   }
 
-  console.log("Seed complete: 1 user, 8 products, 3 jobs, 8 activities, 6 reviews");
+  // Theme presets
+  const presetDefs = [
+    { name: "Supplements & Health", slug: "supplements", category: "Supplements", description: "Clean, clinical design with ingredient tables and lab-tested badges", colors: JSON.stringify({ accent: "#22c55e", accentLight: "#bbf7d0", background: "#f0fdf4", buttonBg: "#16a34a", buttonText: "#ffffff", badgeBg: "#dcfce7", badgeText: "#166534" }), typography: JSON.stringify({ headingFont: "Poppins", bodyFont: "Inter", headingScale: 110, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "Lab Tested", color: "#22c55e", icon: "shield" }, { text: "GMP Certified", color: "#16a34a", icon: "check_circle" }, { text: "Third Party Verified", color: "#15803d", icon: "verified" }]) },
+    { name: "Electronics & Tech", slug: "electronics", category: "Electronics", description: "Technical layout with specs tables and warranty highlights", colors: JSON.stringify({ accent: "#3b82f6", accentLight: "#bfdbfe", background: "#eff6ff", buttonBg: "#2563eb", buttonText: "#ffffff", badgeBg: "#dbeafe", badgeText: "#1e40af" }), typography: JSON.stringify({ headingFont: "Inter", bodyFont: "Inter", headingScale: 105, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "1-Year Warranty", color: "#3b82f6", icon: "shield" }, { text: "Fast Shipping", color: "#2563eb", icon: "truck" }, { text: "Tech Certified", color: "#1d4ed8", icon: "check_circle" }]) },
+    { name: "Beauty & Skincare", slug: "beauty", category: "Beauty", description: "Elegant design with ingredient spotlights and review carousels", colors: JSON.stringify({ accent: "#f43f5e", accentLight: "#fecdd3", background: "#fff1f2", buttonBg: "#e11d48", buttonText: "#ffffff", badgeBg: "#ffe4e6", badgeText: "#9f1239" }), typography: JSON.stringify({ headingFont: "Playfair Display", bodyFont: "Lato", headingScale: 115, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "Cruelty Free", color: "#f43f5e", icon: "heart" }, { text: "Dermatologist Tested", color: "#e11d48", icon: "check_circle" }, { text: "Clean Beauty", color: "#be123c", icon: "leaf" }]) },
+    { name: "Home & Kitchen", slug: "home-kitchen", category: "Home", description: "Warm layout with room galleries and care instructions", colors: JSON.stringify({ accent: "#f59e0b", accentLight: "#fde68a", background: "#fffbeb", buttonBg: "#d97706", buttonText: "#ffffff", badgeBg: "#fef3c7", badgeText: "#92400e" }), typography: JSON.stringify({ headingFont: "Nunito", bodyFont: "Inter", headingScale: 110, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "Eco-Friendly", color: "#f59e0b", icon: "leaf" }, { text: "Easy Assembly", color: "#d97706", icon: "tool" }, { text: "Satisfaction Guaranteed", color: "#b45309", icon: "heart" }]) },
+    { name: "Fashion & Apparel", slug: "fashion", category: "Fashion", description: "Stylish layout with size guides and lookbook galleries", colors: JSON.stringify({ accent: "#a855f7", accentLight: "#e9d5ff", background: "#faf5ff", buttonBg: "#9333ea", buttonText: "#ffffff", badgeBg: "#f3e8ff", badgeText: "#6b21a8" }), typography: JSON.stringify({ headingFont: "Cormorant Garamond", bodyFont: "Inter", headingScale: 120, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "Sustainably Sourced", color: "#a855f7", icon: "leaf" }, { text: "True to Size", color: "#9333ea", icon: "ruler" }, { text: "Premium Fabric", color: "#7e22ce", icon: "star" }]) },
+    { name: "Fitness & Sports", slug: "fitness", category: "Fitness", description: "Bold, energetic layout with workout use cases and athlete reviews", colors: JSON.stringify({ accent: "#f97316", accentLight: "#fed7aa", background: "#fff7ed", buttonBg: "#ea580c", buttonText: "#ffffff", badgeBg: "#ffedd5", badgeText: "#9a3412" }), typography: JSON.stringify({ headingFont: "Oswald", bodyFont: "Inter", headingScale: 115, bodyScale: 100 }), sections: "[]", badges: JSON.stringify([{ text: "Pro Approved", color: "#f97316", icon: "star" }, { text: "Heavy Duty", color: "#ea580c", icon: "shield" }, { text: "30-Day Guarantee", color: "#c2410c", icon: "heart" }]) },
+  ];
+
+  for (const def of presetDefs) {
+    await prisma.themePreset.upsert({
+      where: { slug: def.slug },
+      update: {},
+      create: { ...def, isDefault: true },
+    });
+  }
+
+  console.log("Seed complete: 1 user, 8 products, 3 jobs, 8 activities, 6 reviews, 6 theme presets");
 }
 
 main()

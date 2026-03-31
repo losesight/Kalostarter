@@ -24,14 +24,25 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const userId = session.user.id;
+
   try {
     const body: Record<string, string> = await req.json();
 
+    // Verify the user actually exists in DB (JWT may outlive a DB reset)
+    const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!userExists) {
+      return NextResponse.json(
+        { error: "Session expired. Please log out and log back in." },
+        { status: 401 }
+      );
+    }
+
     const ops = Object.entries(body).map(([key, value]) =>
       db.setting.upsert({
-        where: { key_userId: { key, userId: session.user!.id! } },
+        where: { key_userId: { key, userId } },
         update: { value },
-        create: { key, value, userId: session.user!.id! },
+        create: { key, value, userId },
       })
     );
 

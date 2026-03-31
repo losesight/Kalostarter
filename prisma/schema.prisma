@@ -52,9 +52,12 @@ model Product {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  importJobId String?
-  importJob   ImportJob? @relation(fields: [importJobId], references: [id])
-  reviews     Review[]
+  importJobId    String?
+  importJob      ImportJob?    @relation(fields: [importJobId], references: [id])
+  themePresetId  String?
+  themePreset    ThemePreset?  @relation(fields: [themePresetId], references: [id])
+  reviews        Review[]
+  launchProjects LaunchProject[]
 }
 
 model ImportJob {
@@ -91,6 +94,24 @@ model Setting {
   @@unique([key, userId])
 }
 
+model ThemePreset {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  category    String
+  isDefault   Boolean  @default(false)
+  colors      String   // JSON: { accent, background, buttonBg, buttonText, badgeBg }
+  typography  String   // JSON: { headingFont, bodyFont, headingScale, bodyScale }
+  sections    String   // JSON: ordered array of section configs for product template
+  badges      String   // JSON: [{ text, color, icon }]
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products       Product[]
+  launchProjects LaunchProject[]
+}
+
 model Review {
   id        String   @id @default(cuid())
   productId String
@@ -102,4 +123,38 @@ model Review {
   verified  Boolean  @default(false)
   helpful   Int      @default(0)
   createdAt DateTime @default(now())
+}
+
+model LaunchProject {
+  id               String    @id @default(cuid())
+  name             String
+  kaloUrl          String
+  status           String    @default("importing") // importing | analyzing | pricing | copywriting | building | ready | error
+  currentStep      Int       @default(1)
+
+  // Step 1: Import
+  productId        String?
+  product          Product?  @relation(fields: [productId], references: [id])
+  rawProductData   String?   // JSON: full scraped payload
+
+  // Step 2: Ad Intelligence
+  adData           String?   // JSON: user-pasted ad info
+  adAnalysis       String?   // JSON: AI analysis result
+
+  // Step 3: Pricing
+  competitorData   String?   // JSON: scraped competitor prices
+  pricingResult    String?   // JSON: recommended tiers
+
+  // Step 4: Copy
+  websiteCopy      String?   // JSON: AI-generated website copy
+  adCopy           String?   // JSON: recommended ad copy
+
+  // Step 5: Theme
+  themePresetId    String?
+  themePreset      ThemePreset? @relation(fields: [themePresetId], references: [id])
+  themeZipPath     String?
+
+  errorLog         String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

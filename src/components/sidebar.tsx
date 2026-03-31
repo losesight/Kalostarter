@@ -10,19 +10,23 @@ import {
   Package,
   Sparkles,
   ShoppingBag,
+  Palette,
   Star,
   Settings,
   ChevronLeft,
   ChevronRight,
   Zap,
+  Rocket,
 } from "lucide-react";
 
 const navItems = [
+  { href: "/launch", label: "Launch", icon: Rocket },
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/sources", label: "Data Sources", icon: Database },
   { href: "/products", label: "Products", icon: Package },
   { href: "/content", label: "Content AI", icon: Sparkles },
   { href: "/shopify", label: "Shopify Sync", icon: ShoppingBag },
+  { href: "/templates", label: "Templates", icon: Palette },
   { href: "/reviews", label: "Reviews", icon: Star },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -46,9 +50,9 @@ export function Sidebar() {
         {!collapsed && (
           <div className="overflow-hidden">
             <h1 className="text-base font-extralight tracking-tight text-text-primary">
-              Kalo<span className="gradient-text font-light">Starter</span>
+              ff<span className="gradient-text font-light">lame</span>
             </h1>
-            <p className="micro-label">Kalo → Shopify</p>
+            <p className="micro-label">fflame.io</p>
           </div>
         )}
       </div>
@@ -104,10 +108,10 @@ export function Sidebar() {
         {!collapsed && (
           <div className="rounded-lg bg-gradient-to-br from-accent-primary/10 to-accent-tertiary/10 border border-accent-primary/20 p-3">
             <p className="text-[0.7rem] font-light text-text-primary">
-              MVP Build
+              fflame MVP
             </p>
             <p className="mt-1 text-[0.6rem] font-light text-text-muted">
-              Mock panel — no live API calls
+              Kalo → Shopify pipeline
             </p>
           </div>
         )}

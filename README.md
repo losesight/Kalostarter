@@ -1,6 +1,6 @@
-# KaloStarter
+# fflame
 
-Import products from [Kalo Data](https://www.kalodata.com/product) (TikTok Shop analytics), generate AI-optimized content, and publish to [Shopify](https://shopify.dev/docs) — all from one admin panel.
+Import products from [Kalo Data](https://www.kalodata.com/product) (TikTok Shop analytics), generate AI-optimized content, and publish to [Shopify](https://shopify.dev/docs) — all from one admin panel. **fflame.io**
 
 ## Quick Start
 
@@ -11,7 +11,7 @@ npm run db:seed     # creates admin user + sample data
 npm run dev         # http://localhost:3000
 ```
 
-**Default login:** `admin@kalostarter.com` / `admin123`
+**Default login:** `admin@fflame.io` / `admin123`
 
 ## Architecture
 
